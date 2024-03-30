@@ -84,16 +84,16 @@ static packet_t* NGDEF(_current_packet);
 #define current_packet NG(_current_packet)
 
 // CSMA-CA parameters
-static int16_t NGDEF(_dll_tca);
+static uint16_t NGDEF(_dll_tca);
 #define dll_tca NG(_dll_tca)
 
-static int16_t NGDEF(_dll_to);
+static uint16_t NGDEF(_dll_to);
 #define dll_to NG(_dll_to)
 
 static uint16_t NGDEF(_dll_slot_duration);
 #define dll_slot_duration NG(_dll_slot_duration)
 
-static uint32_t NGDEF(_dll_cca_started);
+static timer_tick_t NGDEF(_dll_cca_started);
 #define dll_cca_started NG(_dll_cca_started)
 
 static bool NGDEF(_process_received_packets_after_tx);
@@ -543,18 +543,18 @@ static void execute_csma_ca(void *arg)
              * we substract also 1 tick to take into account also the switching
              * time required in the transceiver.
              */
-            dll_tca = dll_tc - current_packet->tx_duration - t_g - 1;
+            int32_t dll_tca_temp = dll_tc - current_packet->tx_duration - t_g - 1;
             dll_cca_started = timer_get_counter_value();
-            DPRINT("Tca= %i with Tc %i and Ttx %i", dll_tca, dll_tc, current_packet->tx_duration);
+            DPRINT("Tca= %i with Tc %i and Ttx %i", dll_tca_temp, dll_tc, current_packet->tx_duration);
 
             // Adjust TCA value according the time already elapsed since the reception time in case of response
             if (current_packet->request_received_timestamp)
             {
-                dll_tca -= dll_cca_started - current_packet->request_received_timestamp;
-                DPRINT("Adjusted Tca= %i = %i - %i", dll_tca, dll_cca_started, current_packet->request_received_timestamp);
+                dll_tca_temp -= dll_cca_started - current_packet->request_received_timestamp;
+                DPRINT("Adjusted Tca= %i = %i - %i", dll_tca_temp, dll_cca_started, current_packet->request_received_timestamp);
             }
 
-            if (dll_tca <= 0)
+            if (dll_tca_temp <= 0)
             {
                 log_print_error_string("Tca negative, CCA failed");
                 // Let the upper layer decide eventually to change the channel in order to get a chance a send this frame
@@ -563,6 +563,8 @@ static void execute_csma_ca(void *arg)
                 d7anp_signal_transmission_failure();
                 break;
             }
+            
+            dll_tca = dll_tca_temp;
 
             uint16_t t_offset = 0;
 
@@ -625,18 +627,21 @@ static void execute_csma_ca(void *arg)
         }
         case DLL_STATE_CSMA_CA_RETRY:
         {
-            int32_t cca_duration = timer_get_counter_value() - dll_cca_started;
-            dll_to -= cca_duration;
+            timer_tick_t now = timer_get_counter_value();
+            assert(now > dll_cca_started);
+            timer_tick_t cca_duration = now - dll_cca_started;
 
-            if (dll_to <= 0)
+            if (cca_duration > dll_to)
             {
-                log_print_error_string("CCA fail because dll_to = %i", dll_to);
+                log_print_error_string("CCA fail because dll_to = %i and cca_duration = %d", dll_to, cca_duration);
+                dll_to = 0;
                 switch_state(DLL_STATE_CCA_FAIL);
                 dll_csma_timer.next_event = 0;
                 error_t rtc = timer_add_event(&dll_csma_timer);
                 assert(rtc == SUCCESS);
                 break;
             }
+            dll_to -= cca_duration;
 
             DPRINT("RETRY with dll_to = %i", dll_to);
 
