@@ -26,4 +26,6 @@
 #include "stm32l0xx_ll_exti.h"
 #include "stm32l0xx_ll_usart.h"
 
+#define DMA_COUNT 7
+
 #endif

@@ -73,6 +73,8 @@ typedef struct {
   IRQn_Type irq;
 } dma_channel_t;
 
+extern const dma_channel_t dma_channels[DMA_COUNT];
+
 void stm32_common_mcu_init();
 
 #endif

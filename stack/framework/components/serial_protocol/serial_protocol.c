@@ -302,12 +302,12 @@ static void flush_serial_protocol_tx_fifo(void *arg)
   priv_serial_protocol_handle_t* phandle = (priv_serial_protocol_handle_t*)arg;
   uint8_t len = fifo_get_size(&phandle->tx_fifo);
 
-#ifdef HAL_UART_USE_DMA_TX
-  // when using DMA we transmit the whole FIFO at once
-  uint8_t buffer[SERIAL_PROTOCOL_TX_FIFO_SIZE];
-  fifo_pop(&serial_protocol_tx_fifo, buffer, len);
-  uart_send_bytes(uart, buffer, len);
-#else
+// #ifdef HAL_UART_USE_DMA_TX
+//   // when using DMA we transmit the whole FIFO at once
+//   uint8_t buffer[SERIAL_PROTOCOL_TX_FIFO_SIZE];
+//   fifo_pop(&phandle->tx_fifo, buffer, len);
+//   uart_send_bytes(phandle->uart, buffer, len);
+// #else
 #ifdef FRAMEWORK_SERIAL_PROTOCOL_SUPPORT_DMA
   //Execute atomic, otherwise there is a chance that the DMA complete callback is called during execution of this code.
   // If that would happen a DMA transfer with length 0 is started which will not trigger a complete callback
@@ -368,7 +368,7 @@ static void flush_serial_protocol_tx_fifo(void *arg)
       sched_post_task_prio(&flush_serial_protocol_tx_fifo, MIN_PRIORITY, phandle);
     }
   }
-#endif // HAL_UART_USE_DMA_TX
+// #endif // HAL_UART_USE_DMA_TX
 }
 
 /** @Brief Keeps µC awake while receiving UART data
